@@ -18,11 +18,10 @@ import { useAuth } from '../../contexts/AuthContext';
 
 // Itens de navegação principal
 const NAV_ITEMS = [
-  { to: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard',    desc: 'Visão geral' },
-  { to: '/simulados',    icon: BookOpen,         label: 'Simulados',    desc: 'Iniciar prova' },
-  { to: '/simulados-ia', icon: Sparkles,         label: 'Simulados IA', desc: 'Gerados por IA', violet: true },
-  { to: '/resultado',    icon: Trophy,           label: 'Resultados',   desc: 'Histórico' },
-  { to: '/perfil',       icon: User,             label: 'Perfil',       desc: 'Minha conta' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard',  desc: 'Visão geral' },
+  { to: '/simulados', icon: BookOpen,         label: 'Simulados',  desc: 'Iniciar prova' },
+  { to: '/resultado', icon: Trophy,           label: 'Resultados', desc: 'Histórico' },
+  { to: '/perfil',    icon: User,             label: 'Perfil',     desc: 'Minha conta' },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {

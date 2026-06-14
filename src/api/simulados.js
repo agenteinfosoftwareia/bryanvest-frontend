@@ -62,31 +62,3 @@ export async function gerarPorDisciplina({ disciplina, ano, nivel, quantidade = 
   return resp.data.dados;
 }
 
-/**
- * Gera simulado personalizado com IA (Claude)
- * POST /api/v1/simulados/ia
- * @param {Object} params
- * @param {string}  params.tema       - Tema ou instrução para a IA
- * @param {string?} params.nivel      - 'facil' | 'medio' | 'dificil'
- * @param {number}  params.quantidade - Número de questões (padrão 5)
- */
-export async function gerarComIA({ tipo = 'Enem', qtdQuestoes = 5, nivel, areas, disciplinas, tema, publico = false } = {}) {
-  const body = { tipo, qtdQuestoes, publico };
-  if (nivel)       body.nivel       = nivel;
-  if (areas?.length)       body.areas       = areas;
-  if (disciplinas?.length) body.disciplinas = disciplinas;
-  if (tema)        body.tema        = tema;
-
-  const resp = await client.post('/api/v1/simulados/ia', body);
-  return resp.data.dados;
-}
-
-export async function listarSimuladosIA() {
-  const resp = await client.get('/api/v1/simulados/ia');
-  return resp.data.dados;
-}
-
-export async function obterSimuladoIA(id) {
-  const resp = await client.get(`/api/v1/simulados/ia/${id}`);
-  return resp.data.dados;
-}
