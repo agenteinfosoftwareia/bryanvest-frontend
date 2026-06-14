@@ -142,17 +142,17 @@ export default function EscolherSimulado() {
           setLocalLoad(false);
           return;
         }
-        const areasParte = areasIA.length > 0
-          ? ` — Áreas: ${areasIA.map((v) => AREAS.find((a) => a.valor === v)?.label).join(', ')}`
-          : '';
-        const materiasParte = disciplinasIA.length > 0
-          ? ` — Matérias: ${disciplinasIA.map((v) => DISCIPLINAS.find((d) => d.valor === v)?.label).join(', ')}`
-          : '';
-        const temaCompleto = tipoProvaIA === 'LIVRE'
-          ? `${tema.trim()}${areasParte}${materiasParte}`
-          : `Prova estilo ${tipoProvaIA}: ${tema.trim()}${areasParte}${materiasParte}`;
-        dados = await gerarComIA({ tema: temaCompleto, nivel, quantidade });
-        configLabel = nomeProva.trim() || `${tipoProvaIA} – ${tema.trim().slice(0, 35)}${tema.length > 35 ? '…' : ''}`;
+        const tipoMap = { ENEM: 'Enem', FUVEST: 'Fuvest', UNICAMP: 'Unicamp', UNESP: 'Unesp', VESTIBULAR: 'Vestibular', CONCURSO: 'Concurso', LIVRE: 'Livre' };
+        dados = await gerarComIA({
+          tipo:        tipoMap[tipoProvaIA] ?? 'Enem',
+          qtdQuestoes: quantidade,
+          nivel:       nivel || undefined,
+          areas:       areasIA.length > 0 ? areasIA : undefined,
+          disciplinas: disciplinasIA.length > 0 ? disciplinasIA : undefined,
+          tema:        tema.trim() || undefined,
+          publico:     false,
+        });
+        configLabel = nomeProva.trim() || `${tipoProvaIA}${tema.trim() ? ` – ${tema.trim().slice(0, 30)}` : ''}`;
       } else if (tipo === 'enem_completo') {
         dados = await gerarEnemCompleto({ ano, nivel, quantidadePorArea: quantidade });
         configLabel = `ENEM Completo${ano ? ` – ${ano}` : ''}`;

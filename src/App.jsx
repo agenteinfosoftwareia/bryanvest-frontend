@@ -33,6 +33,7 @@ import Cadastro from './pages/Cadastro';
 // Páginas internas
 import Dashboard        from './pages/Dashboard';
 import EscolherSimulado from './pages/EscolherSimulado';
+import SimuladosIA      from './pages/SimuladosIA';
 import SimuladoAtivo    from './pages/SimuladoAtivo';
 import Resultado        from './pages/Resultado';
 import Perfil           from './pages/Perfil';
@@ -62,11 +63,13 @@ export default function App() {
                   </ProtectedRoute>
                 }
               >
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/simulados" element={<EscolherSimulado />} />
-                <Route path="/simulado"  element={<SimuladoAtivo />} />
-                <Route path="/resultado" element={<Resultado />} />
-                <Route path="/perfil"    element={<Perfil />} />
+                <Route path="/dashboard"       element={<Dashboard />} />
+                <Route path="/simulados"       element={<EscolherSimulado />} />
+                <Route path="/simulados-ia"    element={<SimuladosIA />} />
+                <Route path="/simulados-ia/novo" element={<EscolherSimulado modoIA />} />
+                <Route path="/simulado"        element={<SimuladoAtivo />} />
+                <Route path="/resultado"       element={<Resultado />} />
+                <Route path="/perfil"          element={<Perfil />} />
               </Route>
 
               {/* ── Rota 404 ──────────────────────────────────── */}

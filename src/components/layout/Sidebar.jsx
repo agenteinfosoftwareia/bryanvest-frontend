@@ -18,10 +18,11 @@ import { useAuth } from '../../contexts/AuthContext';
 
 // Itens de navegação principal
 const NAV_ITEMS = [
-  { to: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard',   desc: 'Visão geral' },
-  { to: '/simulados',  icon: BookOpen,         label: 'Simulados',   desc: 'Iniciar prova' },
-  { to: '/resultado',  icon: Trophy,           label: 'Resultados',  desc: 'Histórico' },
-  { to: '/perfil',     icon: User,             label: 'Perfil',      desc: 'Minha conta' },
+  { to: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard',    desc: 'Visão geral' },
+  { to: '/simulados',    icon: BookOpen,         label: 'Simulados',    desc: 'Iniciar prova' },
+  { to: '/simulados-ia', icon: Sparkles,         label: 'Simulados IA', desc: 'Gerados por IA', violet: true },
+  { to: '/resultado',    icon: Trophy,           label: 'Resultados',   desc: 'Histórico' },
+  { to: '/perfil',       icon: User,             label: 'Perfil',       desc: 'Minha conta' },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -87,7 +88,7 @@ export default function Sidebar({ isOpen, onClose }) {
             Menu
           </p>
 
-          {NAV_ITEMS.map(({ to, icon: Icon, label, desc }) => (
+          {NAV_ITEMS.map(({ to, icon: Icon, label, desc, violet }) => (
             <NavLink
               key={to}
               to={to}
@@ -95,12 +96,14 @@ export default function Sidebar({ isOpen, onClose }) {
               className={({ isActive }) => [
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 group',
                 isActive
-                  ? 'nav-active font-semibold'
+                  ? violet
+                    ? 'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 font-semibold'
+                    : 'nav-active font-semibold'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200',
               ].join(' ')}
             >
               {/* Ícone */}
-              <Icon size={18} className="shrink-0" />
+              <Icon size={18} className={`shrink-0 ${violet ? 'text-violet-500' : ''}`} />
 
               {/* Texto */}
               <div className="flex-1 min-w-0">
