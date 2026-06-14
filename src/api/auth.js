@@ -33,6 +33,17 @@ export async function cadastrar(dados) {
 }
 
 /**
+ * Login com Google — envia o idToken recebido do Google Sign-In
+ * POST /api/v1/autenticacao/google
+ * @param {string} idToken - token JWT emitido pelo Google
+ * @returns {Object} { tokenAcesso, refreshToken, usuario }
+ */
+export async function loginGoogle(idToken) {
+  const resp = await client.post('/api/v1/autenticacao/google', { idToken });
+  return resp.data;
+}
+
+/**
  * Logout — revoga o refreshToken no servidor
  * POST /api/v1/autenticacao/sair
  * @param {string} refreshToken

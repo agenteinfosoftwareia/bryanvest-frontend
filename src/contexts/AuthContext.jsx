@@ -12,7 +12,7 @@
  * O userId e dados básicos também ficam salvos para uso offline.
  */
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { login, logout } from '../api/auth';
+import { login, loginGoogle, logout } from '../api/auth';
 
 // Cria o contexto (valor inicial nulo)
 const AuthContext = createContext(null);
@@ -67,6 +67,17 @@ export function AuthProvider({ children }) {
     return dados;
   }, []);
 
+  // ─── Login com Google ─────────────────────────────────────────────────
+  const entrarComGoogle = useCallback(async (idToken) => {
+    const resposta = await loginGoogle(idToken);
+    const dados = resposta.dados ?? resposta;
+    localStorage.setItem('tokenAcesso',  dados.tokenAcesso);
+    localStorage.setItem('refreshToken', dados.refreshToken);
+    localStorage.setItem('usuario',      JSON.stringify(dados.usuario));
+    setUsuario(dados.usuario);
+    return dados;
+  }, []);
+
   // ─── Logout ───────────────────────────────────────────────────────────
   /**
    * Revoga o token no servidor e limpa a sessão local
@@ -95,6 +106,7 @@ export function AuthProvider({ children }) {
     carregando,
     estaLogado: !!usuario,
     entrar,
+    entrarComGoogle,
     sair,
     atualizarUsuario,
   };
