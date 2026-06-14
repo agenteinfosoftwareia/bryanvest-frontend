@@ -89,6 +89,16 @@ const NIVEIS = [
 ];
 
 // Opções de tempo limite (0 = sem limite)
+const TIPOS_PROVA_IA = [
+  { valor: 'ENEM',      label: 'ENEM',      emoji: '🎓' },
+  { valor: 'FUVEST',    label: 'FUVEST',    emoji: '🏛️' },
+  { valor: 'UNICAMP',   label: 'UNICAMP',   emoji: '🔬' },
+  { valor: 'UNESP',     label: 'UNESP',     emoji: '📘' },
+  { valor: 'VESTIBULAR',label: 'Vestibular',emoji: '📝' },
+  { valor: 'CONCURSO',  label: 'Concurso',  emoji: '⚖️' },
+  { valor: 'LIVRE',     label: 'Livre',     emoji: '✨' },
+];
+
 const TEMPOS = [
   { valor: 0,     label: 'Sem limite', icon: '∞' },
   { valor: 1800,  label: '30 min',     icon: '⏱' },
@@ -111,6 +121,9 @@ export default function EscolherSimulado() {
   const [tempoLimite, setTempoLimite]= useState(0);
   const [tema,        setTema]       = useState('');
   const [nomeProva,   setNomeProva]  = useState('');
+  const [tipoProvaIA, setTipoProvaIA]= useState('ENEM');
+  const [areasIA,       setAreasIA]      = useState([]);
+  const [disciplinasIA, setDisciplinasIA] = useState([]);
   const [carregando,  setLocalLoad]  = useState(false);
   const [erro,        setLocalErro]  = useState(null);
 
@@ -129,8 +142,17 @@ export default function EscolherSimulado() {
           setLocalLoad(false);
           return;
         }
-        dados = await gerarComIA({ tema: tema.trim(), nivel, quantidade });
-        configLabel = nomeProva.trim() || `IA: ${tema.trim().slice(0, 40)}${tema.length > 40 ? '…' : ''}`;
+        const areasParte = areasIA.length > 0
+          ? ` — Áreas: ${areasIA.map((v) => AREAS.find((a) => a.valor === v)?.label).join(', ')}`
+          : '';
+        const materiasParte = disciplinasIA.length > 0
+          ? ` — Matérias: ${disciplinasIA.map((v) => DISCIPLINAS.find((d) => d.valor === v)?.label).join(', ')}`
+          : '';
+        const temaCompleto = tipoProvaIA === 'LIVRE'
+          ? `${tema.trim()}${areasParte}${materiasParte}`
+          : `Prova estilo ${tipoProvaIA}: ${tema.trim()}${areasParte}${materiasParte}`;
+        dados = await gerarComIA({ tema: temaCompleto, nivel, quantidade });
+        configLabel = nomeProva.trim() || `${tipoProvaIA} – ${tema.trim().slice(0, 35)}${tema.length > 35 ? '…' : ''}`;
       } else if (tipo === 'enem_completo') {
         dados = await gerarEnemCompleto({ ano, nivel, quantidadePorArea: quantidade });
         configLabel = `ENEM Completo${ano ? ` – ${ano}` : ''}`;
@@ -229,6 +251,94 @@ export default function EscolherSimulado() {
             <Sparkles size={14} /> 2. Configure sua prova com IA
           </h3>
           <div className="space-y-3">
+            {/* Tipo de prova */}
+            <div>
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 block">
+                Tipo de prova
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {TIPOS_PROVA_IA.map(({ valor, label, emoji }) => (
+                  <button
+                    key={valor}
+                    type="button"
+                    onClick={() => setTipoProvaIA(valor)}
+                    className={[
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all',
+                      tipoProvaIA === valor
+                        ? 'border-violet-500 bg-violet-600 text-white'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800/40 hover:border-violet-300',
+                    ].join(' ')}
+                  >
+                    <span>{emoji}</span> {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Área(s) de conhecimento */}
+            <div>
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 block">
+                Área(s) de conhecimento{' '}
+                <span className="text-slate-400">(deixe vazio para todas)</span>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {AREAS.map(({ valor, label, icon }) => {
+                  const selecionada = areasIA.includes(valor);
+                  return (
+                    <button
+                      key={valor}
+                      type="button"
+                      onClick={() =>
+                        setAreasIA((prev) =>
+                          selecionada ? prev.filter((v) => v !== valor) : [...prev, valor]
+                        )
+                      }
+                      className={[
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all',
+                        selecionada
+                          ? 'border-violet-500 bg-violet-600 text-white'
+                          : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800/40 hover:border-violet-300',
+                      ].join(' ')}
+                    >
+                      <span>{icon}</span> {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Matéria(s) */}
+            <div>
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 block">
+                Matéria(s){' '}
+                <span className="text-slate-400">(deixe vazio para todas)</span>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {DISCIPLINAS.map(({ valor, label, icon }) => {
+                  const selecionada = disciplinasIA.includes(valor);
+                  return (
+                    <button
+                      key={valor}
+                      type="button"
+                      onClick={() =>
+                        setDisciplinasIA((prev) =>
+                          selecionada ? prev.filter((v) => v !== valor) : [...prev, valor]
+                        )
+                      }
+                      className={[
+                        'flex items-center gap-1 px-2.5 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all',
+                        selecionada
+                          ? 'border-violet-500 bg-violet-600 text-white'
+                          : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800/40 hover:border-violet-300',
+                      ].join(' ')}
+                    >
+                      <span>{icon}</span> {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Nome da prova */}
             <div>
               <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
