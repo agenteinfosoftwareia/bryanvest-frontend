@@ -12,10 +12,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  BookOpen, Layers, Microscope, Calculator,
-  Globe, Zap, ChevronRight, Star, Clock, Hash,
+  BookOpen, Layers, Microscope,
+  Zap, ChevronRight, Star, Clock, Hash, Sparkles,
 } from 'lucide-react';
-import { gerarEnemCompleto, gerarPorArea, gerarPorDisciplina } from '../api/simulados';
+import { gerarEnemCompleto, gerarPorArea, gerarPorDisciplina, gerarComIA } from '../api/simulados';
 import { useSimulado } from '../contexts/SimuladoContext';
 import Card   from '../components/common/Card';
 import Button from '../components/common/Button';
@@ -44,6 +44,14 @@ const TIPOS = [
     desc:  'Questões de uma matéria específica',
     icon:  Microscope,
     color: 'bg-amber-500',
+  },
+  {
+    id:    'gerar_ia',
+    label: 'Gerar com IA',
+    desc:  'Questões criadas por IA sobre qualquer tema',
+    icon:  Sparkles,
+    color: 'bg-violet-600',
+    novo:  true,
   },
 ];
 
@@ -100,7 +108,9 @@ export default function EscolherSimulado() {
   const [ano,         setAno]        = useState(null);
   const [nivel,       setNivel]      = useState(null);
   const [quantidade,  setQtd]        = useState(10);
-  const [tempoLimite, setTempoLimite]= useState(0);   // 0 = sem limite (segundos)
+  const [tempoLimite, setTempoLimite]= useState(0);
+  const [tema,        setTema]       = useState('');
+  const [nomeProva,   setNomeProva]  = useState('');
   const [carregando,  setLocalLoad]  = useState(false);
   const [erro,        setLocalErro]  = useState(null);
 
@@ -113,7 +123,15 @@ export default function EscolherSimulado() {
       let dados;
       let configLabel;
 
-      if (tipo === 'enem_completo') {
+      if (tipo === 'gerar_ia') {
+        if (!tema.trim()) {
+          setLocalErro('Descreva o tema ou assunto que a IA deve criar as questões.');
+          setLocalLoad(false);
+          return;
+        }
+        dados = await gerarComIA({ tema: tema.trim(), nivel, quantidade });
+        configLabel = nomeProva.trim() || `IA: ${tema.trim().slice(0, 40)}${tema.length > 40 ? '…' : ''}`;
+      } else if (tipo === 'enem_completo') {
         dados = await gerarEnemCompleto({ ano, nivel, quantidadePorArea: quantidade });
         configLabel = `ENEM Completo${ano ? ` – ${ano}` : ''}`;
       } else if (tipo === 'por_area') {
@@ -124,22 +142,22 @@ export default function EscolherSimulado() {
         configLabel = `${DISCIPLINAS.find((d) => d.valor === disciplina)?.label} ${ano ? `– ${ano}` : ''}`;
       }
 
-      // Verifica se retornou questões
       if (!dados?.questoes?.length) {
-        setLocalErro('Nenhuma questão encontrada para os filtros selecionados. Tente outros filtros.');
+        setLocalErro('Nenhuma questão encontrada. Tente outros filtros ou reformule o tema.');
         return;
       }
 
-      // Popula o contexto com as questões embaralhadas
       iniciar(dados.questoes, {
         tipo,
-        area:       tipo === 'por_area'        ? area       : null,
-        disciplina: tipo === 'por_disciplina'  ? disciplina : null,
+        area:        tipo === 'por_area'        ? area       : null,
+        disciplina:  tipo === 'por_disciplina'  ? disciplina : null,
+        tema:        tipo === 'gerar_ia'        ? tema.trim() : null,
+        geradoPorIA: tipo === 'gerar_ia',
         ano,
         nivel,
         quantidade,
         label:       configLabel,
-        tempoLimite,   // segundos (0 = sem limite)
+        tempoLimite,
       });
 
       // Navega para o simulado em andamento
@@ -171,20 +189,27 @@ export default function EscolherSimulado() {
           1. Tipo de simulado
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {TIPOS.map(({ id, label, desc, icon: Icon, color, popular }) => (
+          {TIPOS.map(({ id, label, desc, icon: Icon, color, popular, novo }) => (
             <button
               key={id}
               onClick={() => setTipo(id)}
               className={[
                 'relative p-4 rounded-xl border-2 text-left transition-all duration-200',
                 tipo === id
-                  ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/30'
+                  ? id === 'gerar_ia'
+                    ? 'border-violet-500 bg-violet-50 dark:bg-violet-950/30'
+                    : 'border-brand-500 bg-brand-50 dark:bg-brand-950/30'
                   : 'border-slate-200 dark:border-slate-700 hover:border-brand-300 dark:hover:border-brand-600 bg-white dark:bg-slate-800/40',
               ].join(' ')}
             >
               {popular && (
                 <span className="absolute -top-2 right-3 text-xs gradient-brand text-white px-2 py-0.5 rounded-full font-semibold">
                   Popular
+                </span>
+              )}
+              {novo && (
+                <span className="absolute -top-2 right-3 text-xs bg-violet-600 text-white px-2 py-0.5 rounded-full font-semibold">
+                  Novo ✨
                 </span>
               )}
               <div className={`w-10 h-10 ${color} rounded-xl flex items-center justify-center mb-2`}>
@@ -196,6 +221,46 @@ export default function EscolherSimulado() {
           ))}
         </div>
       </Card>
+
+      {/* ── Passo 2: Configuração da IA ──────────────────────────── */}
+      {tipo === 'gerar_ia' && (
+        <Card padding="md" className="border-2 border-violet-300 dark:border-violet-700 bg-violet-50/50 dark:bg-violet-950/20">
+          <h3 className="text-sm font-semibold text-violet-700 dark:text-violet-300 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <Sparkles size={14} /> 2. Configure sua prova com IA
+          </h3>
+          <div className="space-y-3">
+            {/* Nome da prova */}
+            <div>
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
+                Nome da prova <span className="text-slate-400">(opcional)</span>
+              </label>
+              <input
+                type="text"
+                value={nomeProva}
+                onChange={(e) => setNomeProva(e.target.value)}
+                placeholder="Ex: Simulado de Inteligência Artificial"
+                maxLength={80}
+                className="input-custom"
+              />
+            </div>
+            {/* Tema / instrução */}
+            <div>
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
+                Tema ou assunto <span className="text-rose-500">*</span>
+              </label>
+              <textarea
+                value={tema}
+                onChange={(e) => setTema(e.target.value)}
+                placeholder="Ex: Revolução Industrial, Fotossíntese, Equações do 2º grau, Revolução Francesa..."
+                rows={3}
+                maxLength={500}
+                className="input-custom resize-none"
+              />
+              <p className="text-xs text-slate-400 mt-1 text-right">{tema.length}/500</p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* ── Passo 2: Área ou Disciplina (condicional) ─────────────── */}
       {tipo === 'por_area' && (
@@ -251,26 +316,28 @@ export default function EscolherSimulado() {
       {/* ── Passo 3: Filtros opcionais ────────────────────────────── */}
       <Card padding="md">
         <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">
-          {tipo === 'enem_completo' ? '2.' : '3.'} Filtros opcionais
+          {tipo === 'enem_completo' || tipo === 'gerar_ia' ? '3.' : '3.'} Filtros opcionais
         </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Ano */}
-          <div>
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1 mb-2">
-              <Clock size={12} /> Ano de referência
-            </label>
-            <select
-              value={ano ?? ''}
-              onChange={(e) => setAno(e.target.value ? Number(e.target.value) : null)}
-              className="input-custom"
-            >
-              <option value="">Todos os anos</option>
-              {ANOS.filter(Boolean).map((a) => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
-          </div>
+        <div className={`grid gap-4 ${tipo === 'gerar_ia' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
+          {/* Ano — oculto para IA */}
+          {tipo !== 'gerar_ia' && (
+            <div>
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1 mb-2">
+                <Clock size={12} /> Ano de referência
+              </label>
+              <select
+                value={ano ?? ''}
+                onChange={(e) => setAno(e.target.value ? Number(e.target.value) : null)}
+                className="input-custom"
+              >
+                <option value="">Todos os anos</option>
+                {ANOS.filter(Boolean).map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Nível */}
           <div>
@@ -278,14 +345,16 @@ export default function EscolherSimulado() {
               <Star size={12} /> Nível de dificuldade
             </label>
             <div className="flex gap-2 flex-wrap">
-              {NIVEIS.map(({ valor, label, cor }) => (
+              {NIVEIS.map(({ valor, label }) => (
                 <button
                   key={String(valor)}
                   onClick={() => setNivel(valor)}
                   className={[
                     'px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
                     nivel === valor
-                      ? 'gradient-brand text-white border-transparent'
+                      ? tipo === 'gerar_ia'
+                        ? 'bg-violet-600 text-white border-transparent'
+                        : 'gradient-brand text-white border-transparent'
                       : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-brand-400',
                   ].join(' ')}
                 >
@@ -301,26 +370,28 @@ export default function EscolherSimulado() {
           <label className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1 mb-2">
             <Hash size={12} />
             Quantidade de questões:{' '}
-            <span className="text-brand-600 dark:text-brand-400 font-bold ml-1">{quantidade}</span>
+            <span className={`font-bold ml-1 ${tipo === 'gerar_ia' ? 'text-violet-600 dark:text-violet-400' : 'text-brand-600 dark:text-brand-400'}`}>{quantidade}</span>
             {tipo === 'enem_completo' && (
               <span className="text-slate-400"> por área ({quantidade * 4} total)</span>
             )}
+            {tipo === 'gerar_ia' && (
+              <span className="text-slate-400"> — geradas pela IA</span>
+            )}
           </label>
-          {/* Slider */}
           <input
             type="range"
             min={1}
-            max={tipo === 'enem_completo' ? 20 : 45}
+            max={tipo === 'enem_completo' ? 20 : tipo === 'gerar_ia' ? 10 : 45}
             value={quantidade}
             onChange={(e) => setQtd(Number(e.target.value))}
             className="w-full h-2 rounded-full appearance-none cursor-pointer"
             style={{
-              background: `linear-gradient(to right, #6366f1 ${(quantidade / (tipo === 'enem_completo' ? 20 : 45)) * 100}%, #e2e8f0 0%)`,
+              background: `linear-gradient(to right, ${tipo === 'gerar_ia' ? '#7c3aed' : '#6366f1'} ${(quantidade / (tipo === 'enem_completo' ? 20 : tipo === 'gerar_ia' ? 10 : 45)) * 100}%, #e2e8f0 0%)`,
             }}
           />
           <div className="flex justify-between text-xs text-slate-400 mt-1">
             <span>1</span>
-            <span>{tipo === 'enem_completo' ? '20 por área' : '45'}</span>
+            <span>{tipo === 'enem_completo' ? '20 por área' : tipo === 'gerar_ia' ? '10' : '45'}</span>
           </div>
         </div>
 
@@ -362,10 +433,12 @@ export default function EscolherSimulado() {
         fullWidth
         loading={carregando}
         onClick={handleIniciar}
-        icon={!carregando && <Zap size={18} />}
-        className="shadow-brand-lg glow-brand"
+        icon={!carregando && (tipo === 'gerar_ia' ? <Sparkles size={18} /> : <Zap size={18} />)}
+        className={tipo === 'gerar_ia' ? 'bg-violet-600 hover:bg-violet-700 shadow-lg' : 'shadow-brand-lg glow-brand'}
       >
-        {carregando ? 'Carregando questões...' : 'Iniciar Simulado'}
+        {carregando
+          ? tipo === 'gerar_ia' ? 'IA gerando questões...' : 'Carregando questões...'
+          : tipo === 'gerar_ia' ? 'Gerar Prova com IA' : 'Iniciar Simulado'}
         {!carregando && <ChevronRight size={18} />}
       </Button>
     </div>

@@ -61,3 +61,19 @@ export async function gerarPorDisciplina({ disciplina, ano, nivel, quantidade = 
   const resp = await client.get('/api/v1/simulados/por-disciplina', { params });
   return resp.data.dados;
 }
+
+/**
+ * Gera simulado personalizado com IA (Claude)
+ * POST /api/v1/simulados/ia
+ * @param {Object} params
+ * @param {string}  params.tema       - Tema ou instrução para a IA
+ * @param {string?} params.nivel      - 'facil' | 'medio' | 'dificil'
+ * @param {number}  params.quantidade - Número de questões (padrão 5)
+ */
+export async function gerarComIA({ tema, nivel, quantidade = 5 } = {}) {
+  const body = { tema, quantidade };
+  if (nivel) body.nivel = nivel;
+
+  const resp = await client.post('/api/v1/simulados/ia', body);
+  return resp.data.dados;
+}
