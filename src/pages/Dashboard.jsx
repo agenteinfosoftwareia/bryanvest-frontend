@@ -21,7 +21,7 @@ import {
 } from 'recharts';
 import {
   Trophy, Target, Zap, BookOpen, TrendingUp,
-  PlayCircle, Star,
+  PlayCircle, Star, XCircle, Clock,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Card   from '../components/common/Card';
@@ -98,13 +98,14 @@ export default function Dashboard() {
   const stats = useMemo(() => {
     if (!historico.length) return null;
 
-    const totalQuestoes = historico.reduce((s, h) => s + h.total, 0);
-    const totalAcertos  = historico.reduce((s, h) => s + h.pontos, 0);
+    const totalQuestoes  = historico.reduce((s, h) => s + h.total, 0);
+    const totalAcertos   = historico.reduce((s, h) => s + h.pontos, 0);
+    const totalErros     = totalQuestoes - totalAcertos;
     const aproveitamento = totalQuestoes > 0
       ? Math.round((totalAcertos / totalQuestoes) * 100)
       : 0;
 
-    return { totalSimulados: historico.length, totalQuestoes, totalAcertos, aproveitamento };
+    return { totalSimulados: historico.length, totalQuestoes, totalAcertos, totalErros, aproveitamento };
   }, [historico]);
 
   // Dados para gráfico de linha (últimos 8 simulados)
@@ -204,11 +205,12 @@ export default function Dashboard() {
       </div>
 
       {/* ── Cards de estatísticas ──────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={BookOpen} label="Simulados"    value={stats.totalSimulados}        sub="realizados"       color="brand"  />
-        <StatCard icon={Target}   label="Questões"     value={stats.totalQuestoes}          sub="respondidas"      color="green"  />
-        <StatCard icon={Trophy}   label="Acertos"      value={stats.totalAcertos}           sub="questões certas"  color="yellow" />
-        <StatCard icon={TrendingUp} label="Aproveitamento" value={`${stats.aproveitamento}%`} sub="taxa de acerto" color={stats.aproveitamento >= 60 ? 'green' : 'red'} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <StatCard icon={BookOpen}    label="Simulados"      value={stats.totalSimulados}          sub="realizados"      color="brand"  />
+        <StatCard icon={Target}      label="Questões"       value={stats.totalQuestoes}            sub="respondidas"     color="green"  />
+        <StatCard icon={Trophy}      label="Acertos"        value={stats.totalAcertos}             sub="questões certas" color="yellow" />
+        <StatCard icon={XCircle}     label="Erros"          value={stats.totalErros}               sub="questões erradas" color="red"   />
+        <StatCard icon={TrendingUp}  label="Aproveitamento" value={`${stats.aproveitamento}%`}     sub="taxa de acerto"  color={stats.aproveitamento >= 60 ? 'green' : 'red'} />
       </div>
 
       {/* ── Gráficos ───────────────────────────────────────────────── */}
@@ -307,8 +309,15 @@ export default function Dashboard() {
 
         <div className="space-y-2">
           {historico.slice(-5).reverse().map((h, i) => {
-            const pct = Math.round((h.pontos / h.total) * 100);
-            const cor = pct >= 70 ? 'green' : pct >= 50 ? 'yellow' : 'red';
+            const pct   = Math.round((h.pontos / h.total) * 100);
+            const cor   = pct >= 70 ? 'green' : pct >= 50 ? 'yellow' : 'red';
+            const erros = h.total - h.pontos;
+            const dataFormatada = h.data
+              ? new Date(h.data).toLocaleString('pt-BR', {
+                  day: '2-digit', month: '2-digit', year: 'numeric',
+                  hour: '2-digit', minute: '2-digit',
+                })
+              : null;
             return (
               <div
                 key={i}
@@ -324,8 +333,18 @@ export default function Dashboard() {
                     {h.config?.label ?? 'Simulado'}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {h.pontos} acertos de {h.total} questões
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">{h.pontos} acertos</span>
+                    {' · '}
+                    <span className="text-rose-500 dark:text-rose-400 font-medium">{erros} erros</span>
+                    {' · '}
+                    {h.total} questões
                   </p>
+                  {dataFormatada && (
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 flex items-center gap-1">
+                      <Clock size={10} />
+                      {dataFormatada}
+                    </p>
+                  )}
                 </div>
                 {/* Badge percentual */}
                 <Badge color={cor} size="md">{pct}%</Badge>
