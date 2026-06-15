@@ -114,42 +114,74 @@ export default function EscolherSimulado() {
   const [loadingIA,          setLoadingIA]          = useState(false);
   const [erroIA,             setErroIA]             = useState(null);
   const [simuladoIaSelected, setSimuladoIaSelected] = useState(null);
-  const [fuvestVariantId,    setFuvestVariantId]    = useState(null);
+  const [grupoVariantId,     setGrupoVariantId]     = useState(null);
 
-  // Agrupa variantes FUVEST (FUVEST / FUVEST_1SERIE / etc.) em uma única entrada
-  const { simuladosDisplay, fuvestVariants } = useMemo(() => {
-    const SERIE_LABEL = {
-      FUVEST:        'Todas as Séries',
-      FUVEST_1SERIE: '1ª Série',
-      FUVEST_2SERIE: '2ª Série',
-      FUVEST_3SERIE: '3ª Série',
-    };
-    const SERIE_ORDER = ['FUVEST', 'FUVEST_1SERIE', 'FUVEST_2SERIE', 'FUVEST_3SERIE'];
+  // Configuração de grupos — cada prefixo vira uma entrada com seletor de série
+  const GRUPOS_CONFIG = [
+    {
+      prefixo:   'FUVEST',
+      grupoId:   '__fuvest__',
+      nome:      'Simulado FUVEST 2025 — 2° Grau',
+      tipoExame: 'FUVEST',
+      labels: { FUVEST: 'Todas as Séries', FUVEST_1SERIE: '1ª Série', FUVEST_2SERIE: '2ª Série', FUVEST_3SERIE: '3ª Série' },
+      ordem:  ['FUVEST', 'FUVEST_1SERIE', 'FUVEST_2SERIE', 'FUVEST_3SERIE'],
+      defaultTipo: 'FUVEST',
+    },
+    {
+      prefixo:   'ENEM',
+      grupoId:   '__enem__',
+      nome:      'Simulado ENEM 2025 — 2° Grau',
+      tipoExame: 'ENEM',
+      labels: { ENEM_GERAL: 'Todas as Séries', ENEM_1SERIE: '1ª Série', ENEM_2SERIE: '2ª Série', ENEM_3SERIE: '3ª Série' },
+      ordem:  ['ENEM_GERAL', 'ENEM_1SERIE', 'ENEM_2SERIE', 'ENEM_3SERIE'],
+      defaultTipo: 'ENEM_GERAL',
+    },
+    {
+      prefixo:   'FUVEST_1GRAU',
+      grupoId:   '__fuvest1grau__',
+      nome:      'Simulado FUVEST 2025 — 1° Grau',
+      tipoExame: 'FUVEST',
+      labels: { FUVEST_1GRAU: 'Todas as Séries' },
+      ordem:  ['FUVEST_1GRAU'],
+      defaultTipo: 'FUVEST_1GRAU',
+    },
+  ];
 
-    let grupoAdicionado = false;
-    const display  = [];
-    const opcoes   = [];
-    let defaultId  = null;
+  const { simuladosDisplay, gruposVariants } = useMemo(() => {
+    const display = [];
+    const gruposAdicionados = {};
+    const variantsPorGrupo  = {};
 
     simuladosIA.forEach((sim) => {
-      if (sim.tipoExame?.startsWith('FUVEST')) {
-        if (!grupoAdicionado) {
-          display.push({ id: '__fuvest__', nome: 'Simulado FUVEST 2025 — 2° Grau', tipoExame: 'FUVEST', _isGrupo: true });
-          grupoAdicionado = true;
+      const cfg = GRUPOS_CONFIG.find((g) =>
+        g.prefixo === 'FUVEST_1GRAU'
+          ? sim.tipoExame === 'FUVEST_1GRAU'
+          : sim.tipoExame?.startsWith(g.prefixo + '_') || sim.tipoExame === g.prefixo
+      );
+
+      if (cfg) {
+        if (!gruposAdicionados[cfg.grupoId]) {
+          display.push({ id: cfg.grupoId, nome: cfg.nome, tipoExame: cfg.tipoExame, _isGrupo: true, _cfg: cfg });
+          gruposAdicionados[cfg.grupoId] = true;
+          variantsPorGrupo[cfg.grupoId]  = { opcoes: [], defaultId: null };
         }
-        opcoes.push({ id: sim.id, tipo: sim.tipoExame, label: SERIE_LABEL[sim.tipoExame] ?? sim.tipoExame, qtdQuestoes: sim.qtdQuestoes });
-        if (sim.tipoExame === 'FUVEST') defaultId = sim.id;
+        const label = cfg.labels[sim.tipoExame] ?? sim.tipoExame;
+        variantsPorGrupo[cfg.grupoId].opcoes.push({ id: sim.id, tipo: sim.tipoExame, label, qtdQuestoes: sim.qtdQuestoes });
+        if (sim.tipoExame === cfg.defaultTipo) variantsPorGrupo[cfg.grupoId].defaultId = sim.id;
       } else {
         display.push(sim);
       }
     });
 
-    opcoes.sort((a, b) => SERIE_ORDER.indexOf(a.tipo) - SERIE_ORDER.indexOf(b.tipo));
-    const totalGrupo = opcoes.find((o) => o.tipo === 'FUVEST')?.qtdQuestoes ?? opcoes[0]?.qtdQuestoes ?? 0;
-    const grupo = display.find((s) => s._isGrupo);
-    if (grupo) grupo.qtdQuestoes = totalGrupo;
+    // Ordenar opções de cada grupo
+    Object.entries(variantsPorGrupo).forEach(([gid, v]) => {
+      const cfg = GRUPOS_CONFIG.find((g) => g.grupoId === gid);
+      if (cfg) v.opcoes.sort((a, b) => cfg.ordem.indexOf(a.tipo) - cfg.ordem.indexOf(b.tipo));
+      // Se não encontrou defaultId, usa o primeiro
+      if (!v.defaultId && v.opcoes.length) v.defaultId = v.opcoes[0].id;
+    });
 
-    return { simuladosDisplay: display, fuvestVariants: { opcoes, defaultId } };
+    return { simuladosDisplay: display, gruposVariants: variantsPorGrupo };
   }, [simuladosIA]);
 
   // ── Ação
@@ -173,7 +205,7 @@ export default function EscolherSimulado() {
     setSubtipo(null);
     setSerie(null);
     setSimuladoIaSelected(null);
-    setFuvestVariantId(null);
+    setGrupoVariantId(null);
     setErro(null);
   };
 
@@ -220,13 +252,14 @@ export default function EscolherSimulado() {
     setCarregando(true);
     setErro(null);
     try {
-      const efId = simuladoIaSelected._isGrupo
-        ? (fuvestVariantId ?? fuvestVariants.defaultId)
-        : simuladoIaSelected.id;
-
-      const variantLabel = simuladoIaSelected._isGrupo
-        ? fuvestVariants.opcoes.find((o) => o.id === efId)?.label ?? 'Todas as Séries'
-        : null;
+      let efId, variantLabel;
+      if (simuladoIaSelected._isGrupo) {
+        const gv = gruposVariants[simuladoIaSelected.id] ?? {};
+        efId         = grupoVariantId ?? gv.defaultId;
+        variantLabel = gv.opcoes?.find((o) => o.id === efId)?.label ?? 'Todas as Séries';
+      } else {
+        efId = simuladoIaSelected.id;
+      }
 
       const dados = await obterSimuladoIA(efId);
       if (!dados?.questoes?.length) {
@@ -578,7 +611,7 @@ export default function EscolherSimulado() {
                     <button
                       onClick={() => {
                         setSimuladoIaSelected(sim);
-                        if (isGrupo) setFuvestVariantId(fuvestVariants.defaultId);
+                        setGrupoVariantId(isGrupo ? (gruposVariants[sim.id]?.defaultId ?? null) : null);
                       }}
                       className={[
                         'w-full flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all duration-150',
@@ -600,7 +633,7 @@ export default function EscolherSimulado() {
                               {sim.tipoExame}
                             </span>
                           )}
-                          {isGrupo && (
+                          {isGrupo && gruposVariants[sim.id]?.opcoes?.length > 1 && (
                             <span className="text-xs text-slate-400">por série · 144 questões cada</span>
                           )}
                           {!isGrupo && sim.qtdQuestoes > 0 && (
@@ -617,34 +650,38 @@ export default function EscolherSimulado() {
                       )}
                     </button>
 
-                    {/* Seletor de série — só aparece quando o grupo FUVEST está selecionado */}
-                    {isGrupo && isSelected && fuvestVariants.opcoes.length > 0 && (
-                      <div className="mt-2 ml-2 p-3 rounded-xl bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800/50">
-                        <p className="text-xs font-semibold text-violet-600 dark:text-violet-400 mb-2 uppercase tracking-wider flex items-center gap-1">
-                          <School size={12} />
-                          Escolher série
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {fuvestVariants.opcoes.map((op) => {
-                            const ativa = (fuvestVariantId ?? fuvestVariants.defaultId) === op.id;
-                            return (
-                              <button
-                                key={op.id}
-                                onClick={() => setFuvestVariantId(op.id)}
-                                className={[
-                                  'px-3 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all',
-                                  ativa
-                                    ? 'bg-violet-600 border-violet-600 text-white shadow-sm'
-                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-violet-400',
-                                ].join(' ')}
-                              >
-                                {op.label}
-                              </button>
-                            );
-                          })}
+                    {/* Seletor de série — aparece para qualquer grupo selecionado */}
+                    {isGrupo && isSelected && (() => {
+                      const gv = gruposVariants[sim.id];
+                      if (!gv?.opcoes?.length) return null;
+                      return (
+                        <div className="mt-2 ml-2 p-3 rounded-xl bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800/50">
+                          <p className="text-xs font-semibold text-violet-600 dark:text-violet-400 mb-2 uppercase tracking-wider flex items-center gap-1">
+                            <School size={12} />
+                            Escolher série
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {gv.opcoes.map((op) => {
+                              const ativa = (grupoVariantId ?? gv.defaultId) === op.id;
+                              return (
+                                <button
+                                  key={op.id}
+                                  onClick={() => setGrupoVariantId(op.id)}
+                                  className={[
+                                    'px-3 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all',
+                                    ativa
+                                      ? 'bg-violet-600 border-violet-600 text-white shadow-sm'
+                                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-violet-400',
+                                  ].join(' ')}
+                                >
+                                  {op.label}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 );
               })}
