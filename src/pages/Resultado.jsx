@@ -69,6 +69,7 @@ export default function Resultado() {
         tipo:  config?.tipo,
         area:  config?.area,
         nivel: config?.nivel ?? null,
+        serie: config?.serie ?? null,
       },
     });
     localStorage.setItem('historico_simulados', JSON.stringify(historico));

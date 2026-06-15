@@ -321,6 +321,8 @@ export default function Dashboard() {
             const nivelLabel = { facil: 'Fácil', medio: 'Médio', dificil: 'Difícil' };
             const nivelCor   = { facil: 'text-emerald-500', medio: 'text-amber-500', dificil: 'text-rose-500' };
             const nivel      = h.config?.nivel;
+            const serieLabel = { '1_serie': '1º Colegial', '2_serie': '2º Colegial', '3_serie': '3º Colegial' };
+            const serie      = h.config?.serie;
             return (
               <div
                 key={i}
@@ -344,6 +346,11 @@ export default function Dashboard() {
                     {nivel && (
                       <span className={`ml-1 font-semibold ${nivelCor[nivel] ?? ''}`}>
                         · {nivelLabel[nivel] ?? nivel}
+                      </span>
+                    )}
+                    {serie && (
+                      <span className="ml-1 font-semibold text-violet-500 dark:text-violet-400">
+                        · {serieLabel[serie] ?? serie}
                       </span>
                     )}
                   </p>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Layers, Microscope, Zap, ChevronRight, ChevronLeft,
-  Star, Clock, Hash, Sparkles, AlertCircle, Loader2, GraduationCap,
+  Star, Clock, Hash, Sparkles, AlertCircle, Loader2, GraduationCap, School,
 } from 'lucide-react';
 import {
   gerarEnemCompleto, gerarPorArea, gerarPorDisciplina,
@@ -66,6 +66,13 @@ const DISCIPLINAS = [
 // Apenas os 3 últimos anos para ENEM oficial
 const ANOS_RECENTES = [2024, 2023, 2022];
 
+const SERIES = [
+  { valor: null,      label: 'Todos',       desc: 'Questões de todos os anos' },
+  { valor: '1_serie', label: '1º Colegial', desc: '1ª série do Ensino Médio' },
+  { valor: '2_serie', label: '2º Colegial', desc: '2ª série do Ensino Médio' },
+  { valor: '3_serie', label: '3º Colegial', desc: '3ª série / pré-vestibular' },
+];
+
 const NIVEIS = [
   { valor: null,      label: 'Todos' },
   { valor: 'facil',   label: 'Fácil' },
@@ -96,6 +103,7 @@ export default function EscolherSimulado() {
   const [disciplina,  setDisciplina]  = useState('matematica');
   const [ano,         setAno]         = useState(null);
   const [nivel,       setNivel]       = useState(null);
+  const [serie,       setSerie]       = useState(null);
   const [quantidade,  setQtd]         = useState(10);
   const [tempoLimite, setTempoLimite] = useState(0);
 
@@ -124,6 +132,7 @@ export default function EscolherSimulado() {
   const selecionarTipo = (id) => {
     setTipoPrincipal(id);
     setSubtipo(null);
+    setSerie(null);
     setSimuladoIaSelected(null);
     setErro(null);
   };
@@ -134,15 +143,17 @@ export default function EscolherSimulado() {
     try {
       let dados, label;
 
+      const serieLabel = SERIES.find((s) => s.valor === serie)?.label ?? null;
+
       if (subtipo === 'enem_completo') {
-        dados = await gerarEnemCompleto({ ano, nivel, quantidadePorArea: quantidade });
-        label = `ENEM Completo${ano ? ` – ${ano}` : ''}`;
+        dados = await gerarEnemCompleto({ ano, nivel, serie, quantidadePorArea: quantidade });
+        label = `ENEM Completo${ano ? ` – ${ano}` : ''}${serieLabel && serie ? ` · ${serieLabel}` : ''}`;
       } else if (subtipo === 'por_area') {
-        dados = await gerarPorArea({ area, ano, nivel, quantidade });
-        label = `${AREAS.find((a) => a.valor === area)?.label}${ano ? ` – ${ano}` : ''}`;
+        dados = await gerarPorArea({ area, ano, nivel, serie, quantidade });
+        label = `${AREAS.find((a) => a.valor === area)?.label}${ano ? ` – ${ano}` : ''}${serieLabel && serie ? ` · ${serieLabel}` : ''}`;
       } else {
-        dados = await gerarPorDisciplina({ disciplina, ano, nivel, quantidade });
-        label = `${DISCIPLINAS.find((d) => d.valor === disciplina)?.label}${ano ? ` – ${ano}` : ''}`;
+        dados = await gerarPorDisciplina({ disciplina, ano, nivel, serie, quantidade });
+        label = `${DISCIPLINAS.find((d) => d.valor === disciplina)?.label}${ano ? ` – ${ano}` : ''}${serieLabel && serie ? ` · ${serieLabel}` : ''}`;
       }
 
       if (!dados?.questoes?.length) {
@@ -154,7 +165,7 @@ export default function EscolherSimulado() {
         tipo:       subtipo,
         area:       subtipo === 'por_area'       ? area       : null,
         disciplina: subtipo === 'por_disciplina' ? disciplina : null,
-        ano, nivel, quantidade, label, tempoLimite,
+        ano, nivel, serie, quantidade, label, tempoLimite,
       });
       navigate('/simulado');
     } catch (err) {
@@ -273,6 +284,32 @@ export default function EscolherSimulado() {
                 </div>
                 <p className="font-semibold text-sm text-slate-800 dark:text-slate-200">{label}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{desc}</p>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Etapa 2b (ENEM): Série / Ano escolar ────────────────────────────── */}
+      {tipoPrincipal === 'oficial' && subtipo !== null && (
+        <Card padding="md">
+          <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <School size={13} /> Série / Ano escolar
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {SERIES.map(({ valor, label, desc }) => (
+              <button
+                key={String(valor)}
+                onClick={() => setSerie(valor)}
+                className={[
+                  'p-3 rounded-xl border-2 text-left transition-all duration-200',
+                  serie === valor
+                    ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/30'
+                    : 'border-slate-200 dark:border-slate-700 hover:border-brand-300 bg-white dark:bg-slate-800/40',
+                ].join(' ')}
+              >
+                <p className="font-bold text-sm text-slate-800 dark:text-slate-200">{label}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{desc}</p>
               </button>
             ))}
           </div>
