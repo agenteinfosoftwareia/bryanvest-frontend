@@ -1,15 +1,5 @@
-/**
- * Perfil.jsx — Tela de perfil e configurações do aluno
- *
- * Abas:
- *  1. Conta      — nome, e-mail, foto
- *  2. Escolar    — escola, série, matérias difíceis, vestibulares
- *  3. Aparência  — modo escuro (toggle)
- *
- * Sincroniza o modoEscuro com a API (perfil-aluno.modoEscuro).
- */
-import { useState, useEffect } from 'react';
-import { User, School, Palette, Save, CheckCircle, Camera } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { User, School, Palette, Save, CheckCircle, Camera, X, Building2 } from 'lucide-react';
 import { buscarPerfil, salvarPerfil, atualizarUsuario } from '../api/perfil';
 import { useAuth }  from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -19,38 +9,44 @@ import Input   from '../components/common/Input';
 import Toggle  from '../components/common/Toggle';
 import Spinner from '../components/common/Spinner';
 
-// Abas disponíveis
 const ABAS = [
-  { id: 'conta',    label: 'Conta',    icon: User    },
-  { id: 'escolar',  label: 'Escolar',  icon: School  },
-  { id: 'aparencia',label: 'Aparência',icon: Palette },
+  { id: 'conta',      label: 'Conta',      icon: User      },
+  { id: 'escolar',    label: 'Escolar',    icon: School    },
+  { id: 'faculdade',  label: 'Faculdade',  icon: Building2 },
+  { id: 'aparencia',  label: 'Aparência',  icon: Palette   },
 ];
+
 
 export default function Perfil() {
   const { usuario, atualizarUsuario: atualizarCtx } = useAuth();
   const { isDark, definirTema }                      = useTheme();
+  const fileInputRef = useRef(null);
 
   const [abaAtiva,   setAbaAtiva]   = useState('conta');
   const [carregando, setCarregando] = useState(true);
   const [salvando,   setSalvando]   = useState(false);
   const [sucesso,    setSucesso]    = useState('');
 
-  // Dados do perfil aluno (API)
-  const [perfilAluno, setPerfilAluno] = useState(null);
-
-  // Campos do formulário — Conta
+  // Conta
   const [nome,    setNome]    = useState('');
   const [email,   setEmail]   = useState('');
   const [fotoUrl, setFotoUrl] = useState('');
 
-  // Campos — Escolar
-  const [nomeEscola,     setNomeEscola]     = useState('');
-  const [escolaridade,   setEscolaridade]   = useState('');
-  const [serieAno,       setSerieAno]       = useState('');
-  const [vestibulares,   setVestibulares]   = useState([]);
+  // Escolar
+  const [nomeEscola,       setNomeEscola]       = useState('');
+  const [escolaridade,     setEscolaridade]     = useState('');
+  const [serieAno,         setSerieAno]         = useState('');
+  const [vestibulares,     setVestibulares]     = useState([]);
   const [materiasDificeis, setMateriasDificeis] = useState([]);
 
-  // Carrega dados ao montar
+  // Faculdades
+  const [vestibularAlvo,   setVestibularAlvo]   = useState('');  // Faculdade Alvo 1 nome
+  const [graduacaoAlvo,    setGraduacaoAlvo]    = useState('');  // Fac1 — 1ª opção curso
+  const [graduacaoAlvo2,   setGraduacaoAlvo2]   = useState('');  // Fac1 — 2ª opção curso
+  const [faculdade2,       setFaculdade2]       = useState('');  // Faculdade Alvo 2 nome (→ graduacaoAlvo3)
+  const [faculdade2Curso1, setFaculdade2Curso1] = useState('');  // Fac2 — 1ª opção curso
+  const [faculdade2Curso2, setFaculdade2Curso2] = useState('');  // Fac2 — 2ª opção curso
+
   useEffect(() => {
     const carregar = async () => {
       try {
@@ -60,14 +56,18 @@ export default function Perfil() {
 
         if (usuario?.id) {
           const perfil = await buscarPerfil(usuario.id);
-          setPerfilAluno(perfil);
           setNomeEscola(perfil?.nomeEscola ?? '');
           setEscolaridade(perfil?.escolaridade ?? '');
           setSerieAno(perfil?.serieAno ?? '');
           setVestibulares(perfil?.vestibulares ?? []);
           setMateriasDificeis(perfil?.materiasDificeis ?? []);
+          setVestibularAlvo(perfil?.vestibularAlvo ?? '');
+          setGraduacaoAlvo(perfil?.graduacaoAlvo ?? '');
+          setGraduacaoAlvo2(perfil?.graduacaoAlvo2 ?? '');
+          setFaculdade2(perfil?.graduacaoAlvo3 ?? '');
+          setFaculdade2Curso1(perfil?.faculdadeAlvo2Curso1 ?? '');
+          setFaculdade2Curso2(perfil?.faculdadeAlvo2Curso2 ?? '');
 
-          // Sincroniza dark mode da API com o contexto
           if (typeof perfil?.modoEscuro === 'boolean') {
             definirTema(perfil.modoEscuro);
           }
@@ -81,21 +81,48 @@ export default function Perfil() {
     carregar();
   }, [usuario?.id]);
 
-  // Salvar aba Conta
+  // Redimensiona a foto selecionada para 200×200 JPEG e armazena como data URL
+  const handleFotoChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const size   = 200;
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = size;
+        const ctx    = canvas.getContext('2d');
+        const dim    = Math.min(img.width, img.height);
+        const ox     = (img.width  - dim) / 2;
+        const oy     = (img.height - dim) / 2;
+        ctx.drawImage(img, ox, oy, dim, dim, 0, 0, size, size);
+        setFotoUrl(canvas.toDataURL('image/jpeg', 0.75));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const salvarConta = async () => {
     setSalvando(true);
     try {
       const atualizado = await atualizarUsuario(usuario.id, { nome, email, fotoUrl: fotoUrl || null });
-      atualizarCtx({ nome: atualizado.nome ?? nome, email: atualizado.email ?? email });
+      atualizarCtx({
+        nome:    atualizado.nome    ?? nome,
+        email:   atualizado.email   ?? email,
+        fotoUrl: fotoUrl || null,
+      });
       mostrarSucesso('Conta atualizada com sucesso!');
     } catch {
-      mostrarSucesso('Erro ao salvar. Tente novamente.', true);
+      mostrarSucesso('Erro ao salvar. Tente novamente.');
     } finally {
       setSalvando(false);
     }
   };
 
-  // Salvar aba Escolar
   const salvarEscolar = async () => {
     setSalvando(true);
     try {
@@ -105,32 +132,31 @@ export default function Perfil() {
         serieAno,
         vestibulares,
         materiasDificeis,
+        vestibularAlvo:   vestibularAlvo   || null,
+        graduacaoAlvo:    graduacaoAlvo    || null,
+        graduacaoAlvo2:   graduacaoAlvo2   || null,
+        graduacaoAlvo3:   faculdade2       || null,
+        faculdade2Curso1: faculdade2Curso1 || null,
+        faculdade2Curso2: faculdade2Curso2 || null,
       });
       mostrarSucesso('Perfil escolar atualizado!');
     } catch {
-      mostrarSucesso('Erro ao salvar. Tente novamente.', true);
+      mostrarSucesso('Erro ao salvar. Tente novamente.');
     } finally {
       setSalvando(false);
     }
   };
 
-  // Salvar modo escuro na API
   const salvarModoEscuro = async (valor) => {
-    definirTema(valor); // atualiza localmente já
-    try {
-      await salvarPerfil(usuario.id, { modoEscuro: valor });
-    } catch {
-      // Falha silenciosa; o localStorage já salvou
-    }
+    definirTema(valor);
+    try { await salvarPerfil(usuario.id, { modoEscuro: valor }); } catch { /* silent */ }
   };
 
-  // Helper: exibe mensagem de sucesso temporária
   const mostrarSucesso = (msg) => {
     setSucesso(msg);
     setTimeout(() => setSucesso(''), 3000);
   };
 
-  // Toggle de item em lista (vestibulares, matérias)
   const toggleLista = (lista, setLista, item) => {
     setLista((prev) =>
       prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
@@ -147,14 +173,25 @@ export default function Perfil() {
 
   return (
     <div className="animate-fadeIn max-w-2xl mx-auto space-y-5">
-      {/* Cabeçalho */}
+      {/* Cabeçalho com avatar */}
       <div className="flex items-center gap-4">
-        {/* Avatar grande */}
-        <div className="relative">
-          <div className="w-20 h-20 gradient-brand rounded-2xl flex items-center justify-center text-white text-2xl font-black shadow-brand-md">
-            {nome ? nome[0].toUpperCase() : '?'}
-          </div>
-          <button className="absolute -bottom-1 -right-1 w-7 h-7 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors shadow-sm">
+        <div className="relative shrink-0">
+          {fotoUrl ? (
+            <img
+              src={fotoUrl}
+              alt="Foto de perfil"
+              className="w-20 h-20 rounded-2xl object-cover shadow-brand-md"
+              onError={() => setFotoUrl('')}
+            />
+          ) : (
+            <div className="w-20 h-20 gradient-brand rounded-2xl flex items-center justify-center text-white text-2xl font-black shadow-brand-md">
+              {nome ? nome[0].toUpperCase() : '?'}
+            </div>
+          )}
+          <button
+            onClick={() => { setAbaAtiva('conta'); setTimeout(() => fileInputRef.current?.click(), 50); }}
+            className="absolute -bottom-1 -right-1 w-7 h-7 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors shadow-sm"
+          >
             <Camera size={12} className="text-slate-600 dark:text-slate-400" />
           </button>
         </div>
@@ -183,7 +220,7 @@ export default function Perfil() {
         ))}
       </div>
 
-      {/* Mensagem de sucesso */}
+      {/* Mensagem de feedback */}
       {sucesso && (
         <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-sm animate-slideDown">
           <CheckCircle size={16} />
@@ -191,9 +228,69 @@ export default function Perfil() {
         </div>
       )}
 
-      {/* ── Aba: Conta ─────────────────────────────────────────── */}
+      {/* ── Aba: Conta ────────────────────────────────────────────── */}
       {abaAtiva === 'conta' && (
-        <Card className="animate-slideUp space-y-4" padding="lg">
+        <Card className="animate-slideUp space-y-5" padding="lg">
+          {/* Foto de perfil */}
+          <div>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-3">
+              Foto de perfil
+            </label>
+            <div className="flex items-center gap-4">
+              {/* Preview */}
+              <div className="relative shrink-0">
+                {fotoUrl ? (
+                  <img
+                    src={fotoUrl}
+                    alt="Preview"
+                    className="w-20 h-20 rounded-2xl object-cover border-2 border-slate-200 dark:border-slate-600"
+                    onError={() => setFotoUrl('')}
+                  />
+                ) : (
+                  <div className="w-20 h-20 gradient-brand rounded-2xl flex items-center justify-center text-white text-2xl font-black">
+                    {nome ? nome[0].toUpperCase() : '?'}
+                  </div>
+                )}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute -bottom-1 -right-1 w-7 h-7 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors shadow-sm"
+                >
+                  <Camera size={12} className="text-slate-600 dark:text-slate-400" />
+                </button>
+              </div>
+
+              {/* Ações */}
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="secondary" size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  icon={<Camera size={14} />}
+                >
+                  Escolher foto
+                </Button>
+                {fotoUrl && (
+                  <button
+                    onClick={() => setFotoUrl('')}
+                    className="flex items-center gap-1 text-xs text-rose-500 hover:text-rose-700 transition-colors"
+                  >
+                    <X size={12} />
+                    Remover foto
+                  </button>
+                )}
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  JPEG/PNG · será salva no banco
+                </p>
+              </div>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleFotoChange}
+              className="hidden"
+            />
+          </div>
+
           <Input
             label="Nome completo"
             value={nome}
@@ -208,13 +305,7 @@ export default function Perfil() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="seu@email.com"
           />
-          <Input
-            label="URL da foto (opcional)"
-            value={fotoUrl}
-            onChange={(e) => setFotoUrl(e.target.value)}
-            placeholder="https://..."
-            hint="Cole a URL de uma imagem para usar como avatar"
-          />
+
           <Button
             variant="primary" size="md"
             loading={salvando}
@@ -226,7 +317,7 @@ export default function Perfil() {
         </Card>
       )}
 
-      {/* ── Aba: Escolar ───────────────────────────────────────── */}
+      {/* ── Aba: Escolar ──────────────────────────────────────────── */}
       {abaAtiva === 'escolar' && (
         <Card className="animate-slideUp space-y-5" padding="lg">
           <Input
@@ -238,7 +329,6 @@ export default function Perfil() {
           />
 
           <div className="grid grid-cols-2 gap-4">
-            {/* Escolaridade */}
             <div>
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1.5">
                 Escolaridade
@@ -254,7 +344,6 @@ export default function Perfil() {
               </select>
             </div>
 
-            {/* Série */}
             <div>
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1.5">
                 Série / Ano
@@ -267,7 +356,7 @@ export default function Perfil() {
                 <option value="">Selecione</option>
                 {escolaridade === 'ensino_fundamental' ? (
                   ['1_ano','2_ano','3_ano','4_ano','5_ano','6_ano','7_ano','8_ano','9_ano'].map((s) => (
-                    <option key={s} value={s}>{s.replace('_', ' ').replace('_', 'º ')}</option>
+                    <option key={s} value={s}>{s.replace('_ano', 'º Ano')}</option>
                   ))
                 ) : (
                   ['1_serie','2_serie','3_serie'].map((s) => (
@@ -335,7 +424,129 @@ export default function Perfil() {
         </Card>
       )}
 
-      {/* ── Aba: Aparência ─────────────────────────────────────── */}
+      {/* ── Aba: Faculdade ───────────────────────────────────────── */}
+      {abaAtiva === 'faculdade' && (
+        <Card className="animate-slideUp space-y-5" padding="lg">
+          <div>
+            <h3 className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2 mb-1">
+              <Building2 size={16} className="text-brand-500" />
+              Faculdades Objetivo
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Defina suas faculdades alvo e os cursos desejados para cada uma.
+            </p>
+          </div>
+
+          {/* Faculdade Alvo 1 */}
+          <div className="p-4 rounded-xl border-2 border-brand-200 dark:border-brand-800/50 bg-brand-50 dark:bg-brand-950/20 space-y-4">
+            <p className="text-sm font-bold text-brand-700 dark:text-brand-300 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full gradient-brand text-white text-xs flex items-center justify-center font-black">1</span>
+              Faculdade Alvo 1
+            </p>
+            <div>
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1.5">
+                Nome da faculdade
+              </label>
+              <input
+                type="text"
+                value={vestibularAlvo}
+                onChange={(e) => setVestibularAlvo(e.target.value)}
+                maxLength={30}
+                placeholder="Ex: USP, UNICAMP, UNESP..."
+                className="input-custom"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1.5">
+                  1ª Preferência de curso
+                </label>
+                <input
+                  type="text"
+                  value={graduacaoAlvo}
+                  onChange={(e) => setGraduacaoAlvo(e.target.value)}
+                  maxLength={100}
+                  placeholder="Ex: Medicina, Direito..."
+                  className="input-custom"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1.5">
+                  2ª Opção de curso
+                </label>
+                <input
+                  type="text"
+                  value={graduacaoAlvo2}
+                  onChange={(e) => setGraduacaoAlvo2(e.target.value)}
+                  maxLength={100}
+                  placeholder="Ex: Engenharia Civil..."
+                  className="input-custom"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Faculdade Alvo 2 */}
+          <div className="p-4 rounded-xl border-2 border-violet-200 dark:border-violet-800/50 bg-violet-50 dark:bg-violet-950/20 space-y-4">
+            <p className="text-sm font-bold text-violet-700 dark:text-violet-300 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-violet-500 text-white text-xs flex items-center justify-center font-black">2</span>
+              Faculdade Alvo 2
+            </p>
+            <div>
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1.5">
+                Nome da faculdade
+              </label>
+              <input
+                type="text"
+                value={faculdade2}
+                onChange={(e) => setFaculdade2(e.target.value)}
+                maxLength={100}
+                placeholder="Ex: PUC-SP, FGV, ITA, Mackenzie..."
+                className="input-custom"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1.5">
+                  1ª Preferência de curso
+                </label>
+                <input
+                  type="text"
+                  value={faculdade2Curso1}
+                  onChange={(e) => setFaculdade2Curso1(e.target.value)}
+                  maxLength={100}
+                  placeholder="Ex: Medicina, Direito..."
+                  className="input-custom"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1.5">
+                  2ª Opção de curso
+                </label>
+                <input
+                  type="text"
+                  value={faculdade2Curso2}
+                  onChange={(e) => setFaculdade2Curso2(e.target.value)}
+                  maxLength={100}
+                  placeholder="Ex: Engenharia Civil..."
+                  className="input-custom"
+                />
+              </div>
+            </div>
+          </div>
+
+          <Button
+            variant="primary" size="md"
+            loading={salvando}
+            icon={!salvando && <Save size={15} />}
+            onClick={salvarEscolar}
+          >
+            Salvar objetivos
+          </Button>
+        </Card>
+      )}
+
+      {/* ── Aba: Aparência ────────────────────────────────────────── */}
       {abaAtiva === 'aparencia' && (
         <Card className="animate-slideUp space-y-5" padding="lg">
           <div>
@@ -344,9 +555,7 @@ export default function Perfil() {
               Alterne entre o modo claro e escuro. A preferência é salva automaticamente.
             </p>
 
-            {/* Preview dos temas */}
             <div className="grid grid-cols-2 gap-3 mb-5">
-              {/* Claro */}
               <button
                 onClick={() => salvarModoEscuro(false)}
                 className={[
@@ -361,7 +570,6 @@ export default function Perfil() {
                 <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">☀️ Modo Claro</p>
               </button>
 
-              {/* Escuro */}
               <button
                 onClick={() => salvarModoEscuro(true)}
                 className={[

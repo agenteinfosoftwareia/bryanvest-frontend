@@ -68,6 +68,7 @@ export default function Resultado() {
         label: config?.label ?? 'Simulado',
         tipo:  config?.tipo,
         area:  config?.area,
+        nivel: config?.nivel ?? null,
       },
     });
     localStorage.setItem('historico_simulados', JSON.stringify(historico));

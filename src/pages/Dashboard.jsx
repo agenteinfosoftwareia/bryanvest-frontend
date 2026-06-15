@@ -318,6 +318,9 @@ export default function Dashboard() {
                   hour: '2-digit', minute: '2-digit',
                 })
               : null;
+            const nivelLabel = { facil: 'Fácil', medio: 'Médio', dificil: 'Difícil' };
+            const nivelCor   = { facil: 'text-emerald-500', medio: 'text-amber-500', dificil: 'text-rose-500' };
+            const nivel      = h.config?.nivel;
             return (
               <div
                 key={i}
@@ -338,6 +341,11 @@ export default function Dashboard() {
                     <span className="text-rose-500 dark:text-rose-400 font-medium">{erros} erros</span>
                     {' · '}
                     {h.total} questões
+                    {nivel && (
+                      <span className={`ml-1 font-semibold ${nivelCor[nivel] ?? ''}`}>
+                        · {nivelLabel[nivel] ?? nivel}
+                      </span>
+                    )}
                   </p>
                   {dataFormatada && (
                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 flex items-center gap-1">
