@@ -81,11 +81,13 @@ const NIVEIS = [
 ];
 
 const TEMPOS = [
-  { valor: 0,     label: 'Sem limite' },
-  { valor: 1800,  label: '30 min' },
-  { valor: 3600,  label: '1 hora' },
-  { valor: 7200,  label: '2 horas' },
-  { valor: 10800, label: '3 horas' },
+  { valor: 1800,   label: '30 min'  },
+  { valor: 3600,   label: '1 hora'  },
+  { valor: 5400,   label: '1h 30'   },
+  { valor: 7200,   label: '2 horas' },
+  { valor: 10800,  label: '3 horas' },
+  { valor: 14400,  label: '4 horas' },
+  { valor: 18000,  label: '5 horas' },
 ];
 
 // ─── Componente ────────────────────────────────────────────────────────────
@@ -105,7 +107,7 @@ export default function EscolherSimulado() {
   const [nivel,       setNivel]       = useState(null);
   const [serie,       setSerie]       = useState(null);
   const [quantidade,  setQtd]         = useState(10);
-  const [tempoLimite, setTempoLimite] = useState(0);
+  const [tempoLimite, setTempoLimite] = useState(1800);
 
   // ── Simulados IA
   const [simuladosIA,         setSimuladosIA]         = useState([]);
