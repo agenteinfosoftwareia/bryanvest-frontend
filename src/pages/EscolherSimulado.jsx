@@ -1,37 +1,44 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  BookOpen, Layers, Microscope,
-  Zap, ChevronRight, Star, Clock, Hash,
+  BookOpen, Layers, Microscope, Zap, ChevronRight, ChevronLeft,
+  Star, Clock, Hash, Sparkles, AlertCircle, Loader2, GraduationCap,
 } from 'lucide-react';
-import { gerarEnemCompleto, gerarPorArea, gerarPorDisciplina } from '../api/simulados';
+import {
+  gerarEnemCompleto, gerarPorArea, gerarPorDisciplina,
+  listarSimuladosIA, obterSimuladoIA,
+} from '../api/simulados';
 import { useSimulado } from '../contexts/SimuladoContext';
 import Card   from '../components/common/Card';
 import Button from '../components/common/Button';
 
-const TIPOS = [
+// ─── Constantes ────────────────────────────────────────────────────────────
+
+const TIPOS_PRINCIPAIS = [
   {
-    id:    'enem_completo',
+    id:    'oficial',
     label: 'ENEM Completo',
-    desc:  'Questões das 4 áreas do ENEM misturadas',
-    icon:  Star,
-    color: 'gradient-brand',
-    popular: true,
+    desc:  'Questões oficiais de provas anteriores',
+    icon:  GraduationCap,
+    cor:   'gradient-brand',
+    badge: 'Popular',
+    badgeCor: 'gradient-brand',
   },
   {
-    id:    'por_area',
-    label: 'Por Área',
-    desc:  'Foca em uma área de conhecimento',
-    icon:  Layers,
-    color: 'bg-emerald-500',
+    id:    'ia',
+    label: 'Gerado com I.A',
+    desc:  'Simulados criados por inteligência artificial',
+    icon:  Sparkles,
+    cor:   'bg-violet-500',
+    badge: 'Novo',
+    badgeCor: 'bg-violet-500',
   },
-  {
-    id:    'por_disciplina',
-    label: 'Por Disciplina',
-    desc:  'Questões de uma matéria específica',
-    icon:  Microscope,
-    color: 'bg-amber-500',
-  },
+];
+
+const SUBTIPOS = [
+  { id: 'enem_completo', label: 'Completo',       desc: 'As 4 áreas do ENEM misturadas', icon: Star,       cor: 'gradient-brand' },
+  { id: 'por_area',      label: 'Por Área',        desc: 'Foca em uma área de conhecimento', icon: Layers,     cor: 'bg-emerald-500' },
+  { id: 'por_disciplina',label: 'Por Disciplina',  desc: 'Questões de uma matéria',          icon: Microscope, cor: 'bg-amber-500'   },
 ];
 
 const AREAS = [
@@ -56,13 +63,16 @@ const DISCIPLINAS = [
   { valor: 'ciencias',   label: 'Ciências',   icon: '🔭' },
 ];
 
-const ANOS   = [null, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015, 2014, 2013, 2012, 2011, 2010, 2009];
+// Apenas os 3 últimos anos para ENEM oficial
+const ANOS_RECENTES = [2024, 2023, 2022];
+
 const NIVEIS = [
-  { valor: null,      label: 'Todos os níveis' },
+  { valor: null,      label: 'Todos' },
   { valor: 'facil',   label: 'Fácil' },
   { valor: 'medio',   label: 'Médio' },
   { valor: 'dificil', label: 'Difícil' },
 ];
+
 const TEMPOS = [
   { valor: 0,     label: 'Sem limite' },
   { valor: 1800,  label: '30 min' },
@@ -71,273 +81,473 @@ const TEMPOS = [
   { valor: 10800, label: '3 horas' },
 ];
 
+// ─── Componente ────────────────────────────────────────────────────────────
+
 export default function EscolherSimulado() {
   const { iniciar } = useSimulado();
-  const navigate = useNavigate();
+  const navigate    = useNavigate();
 
-  const [tipo,        setTipo]       = useState('enem_completo');
-  const [area,        setArea]       = useState('linguagens');
-  const [disciplina,  setDisciplina] = useState('matematica');
-  const [ano,         setAno]        = useState(null);
-  const [nivel,       setNivel]      = useState(null);
-  const [quantidade,  setQtd]        = useState(10);
-  const [tempoLimite, setTempoLimite]= useState(0);
-  const [carregando,  setLocalLoad]  = useState(false);
-  const [erro,        setLocalErro]  = useState(null);
+  // ── Navegação entre etapas
+  const [tipoPrincipal, setTipoPrincipal] = useState(null); // 'oficial' | 'ia'
+  const [subtipo,       setSubtipo]       = useState(null); // 'enem_completo' | 'por_area' | 'por_disciplina'
 
-  const handleIniciar = async () => {
-    setLocalLoad(true);
-    setLocalErro(null);
+  // ── Filtros ENEM oficial
+  const [area,        setArea]        = useState('linguagens');
+  const [disciplina,  setDisciplina]  = useState('matematica');
+  const [ano,         setAno]         = useState(null);
+  const [nivel,       setNivel]       = useState(null);
+  const [quantidade,  setQtd]         = useState(10);
+  const [tempoLimite, setTempoLimite] = useState(0);
 
+  // ── Simulados IA
+  const [simuladosIA,         setSimuladosIA]         = useState([]);
+  const [loadingIA,           setLoadingIA]           = useState(false);
+  const [erroIA,              setErroIA]              = useState(null);
+  const [simuladoIaSelected,  setSimuladoIaSelected]  = useState(null);
+
+  // ── Ação
+  const [carregando, setCarregando] = useState(false);
+  const [erro,       setErro]       = useState(null);
+
+  // Carrega lista de simulados IA quando selecionado
+  useEffect(() => {
+    if (tipoPrincipal !== 'ia') return;
+    setLoadingIA(true);
+    setErroIA(null);
+    listarSimuladosIA()
+      .then(setSimuladosIA)
+      .catch(() => setErroIA('Não foi possível carregar os simulados. Tente novamente.'))
+      .finally(() => setLoadingIA(false));
+  }, [tipoPrincipal]);
+
+  // ── Handlers
+  const selecionarTipo = (id) => {
+    setTipoPrincipal(id);
+    setSubtipo(null);
+    setSimuladoIaSelected(null);
+    setErro(null);
+  };
+
+  const handleIniciarOficial = async () => {
+    setCarregando(true);
+    setErro(null);
     try {
-      let dados;
-      let configLabel;
+      let dados, label;
 
-      if (tipo === 'enem_completo') {
+      if (subtipo === 'enem_completo') {
         dados = await gerarEnemCompleto({ ano, nivel, quantidadePorArea: quantidade });
-        configLabel = `ENEM Completo${ano ? ` – ${ano}` : ''}`;
-      } else if (tipo === 'por_area') {
+        label = `ENEM Completo${ano ? ` – ${ano}` : ''}`;
+      } else if (subtipo === 'por_area') {
         dados = await gerarPorArea({ area, ano, nivel, quantidade });
-        configLabel = `${AREAS.find((a) => a.valor === area)?.label} ${ano ? `– ${ano}` : ''}`;
+        label = `${AREAS.find((a) => a.valor === area)?.label}${ano ? ` – ${ano}` : ''}`;
       } else {
         dados = await gerarPorDisciplina({ disciplina, ano, nivel, quantidade });
-        configLabel = `${DISCIPLINAS.find((d) => d.valor === disciplina)?.label} ${ano ? `– ${ano}` : ''}`;
+        label = `${DISCIPLINAS.find((d) => d.valor === disciplina)?.label}${ano ? ` – ${ano}` : ''}`;
       }
 
       if (!dados?.questoes?.length) {
-        setLocalErro('Nenhuma questão encontrada para os filtros selecionados. Tente outros filtros.');
+        setErro('Nenhuma questão encontrada. Tente outros filtros.');
         return;
       }
 
       iniciar(dados.questoes, {
-        tipo,
-        area:       tipo === 'por_area'       ? area       : null,
-        disciplina: tipo === 'por_disciplina' ? disciplina : null,
-        ano,
-        nivel,
-        quantidade,
-        label:      configLabel,
-        tempoLimite,
+        tipo:       subtipo,
+        area:       subtipo === 'por_area'       ? area       : null,
+        disciplina: subtipo === 'por_disciplina' ? disciplina : null,
+        ano, nivel, quantidade, label, tempoLimite,
       });
-
       navigate('/simulado');
     } catch (err) {
-      const msg = err.response?.data?.mensagem ?? 'Erro ao carregar questões. Tente novamente.';
-      setLocalErro(msg);
+      setErro(err.response?.data?.mensagem ?? 'Erro ao carregar questões. Tente novamente.');
     } finally {
-      setLocalLoad(false);
+      setCarregando(false);
     }
   };
 
+  const handleIniciarIA = async () => {
+    if (!simuladoIaSelected) return;
+    setCarregando(true);
+    setErro(null);
+    try {
+      const dados = await obterSimuladoIA(simuladoIaSelected.id);
+      if (!dados?.questoes?.length) {
+        setErro('Este simulado não possui questões disponíveis.');
+        return;
+      }
+      iniciar(dados.questoes, {
+        tipo:       'ia',
+        label:      simuladoIaSelected.nome,
+        tipoExame:  simuladoIaSelected.tipoExame,
+        tempoLimite: 0,
+      });
+      navigate('/simulado');
+    } catch {
+      setErro('Erro ao carregar o simulado. Tente novamente.');
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  const podeIniciar = tipoPrincipal === 'ia'
+    ? !!simuladoIaSelected
+    : tipoPrincipal === 'oficial' && subtipo !== null;
+
+  // ─── Render ──────────────────────────────────────────────────────────────
+
   return (
     <div className="animate-fadeIn max-w-5xl mx-auto space-y-6">
+
+      {/* Cabeçalho */}
       <div>
         <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <BookOpen className="text-brand-500" size={22} />
           Configurar Simulado
         </h2>
         <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-          Escolha o tipo, filtros e quantidade de questões
+          Escolha o tipo e configure as opções do seu simulado
         </p>
       </div>
 
-      {/* Passo 1: Tipo */}
+      {/* ── Etapa 1: Tipo principal ──────────────────────────────────────── */}
       <Card padding="md">
-        <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">
+        <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
           1. Tipo de simulado
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {TIPOS.map(({ id, label, desc, icon: Icon, color, popular }) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {TIPOS_PRINCIPAIS.map(({ id, label, desc, icon: Icon, cor, badge, badgeCor }) => (
             <button
               key={id}
-              onClick={() => setTipo(id)}
+              onClick={() => selecionarTipo(id)}
               className={[
-                'relative p-4 rounded-xl border-2 text-left transition-all duration-200',
-                tipo === id
-                  ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/30'
+                'relative p-5 rounded-xl border-2 text-left transition-all duration-200',
+                tipoPrincipal === id
+                  ? id === 'ia'
+                    ? 'border-violet-500 bg-violet-50 dark:bg-violet-950/30'
+                    : 'border-brand-500 bg-brand-50 dark:bg-brand-950/30'
                   : 'border-slate-200 dark:border-slate-700 hover:border-brand-300 dark:hover:border-brand-600 bg-white dark:bg-slate-800/40',
               ].join(' ')}
             >
-              {popular && (
-                <span className="absolute -top-2 right-3 text-xs gradient-brand text-white px-2 py-0.5 rounded-full font-semibold">
-                  Popular
+              {badge && (
+                <span className={`absolute -top-2 right-3 text-xs ${badgeCor} text-white px-2 py-0.5 rounded-full font-semibold`}>
+                  {badge}
                 </span>
               )}
-              <div className={`w-10 h-10 ${color} rounded-xl flex items-center justify-center mb-2`}>
-                <Icon size={20} className="text-white" />
+              <div className={`w-11 h-11 ${cor} rounded-xl flex items-center justify-center mb-3`}>
+                <Icon size={22} className="text-white" />
               </div>
-              <p className="font-semibold text-sm text-slate-800 dark:text-slate-200">{label}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{desc}</p>
+              <p className="font-bold text-sm text-slate-800 dark:text-slate-200">{label}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{desc}</p>
             </button>
           ))}
         </div>
       </Card>
 
-      {/* Passo 2: Área */}
-      {tipo === 'por_area' && (
+      {/* ── Etapa 2 (ENEM): Sub-tipo / modalidade ─────────────────────────── */}
+      {tipoPrincipal === 'oficial' && (
         <Card padding="md">
-          <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">
-            2. Área de conhecimento
-          </h3>
-          <div className="grid grid-cols-2 gap-2">
-            {AREAS.map(({ valor, label, icon }) => (
-              <button
-                key={valor}
-                onClick={() => setArea(valor)}
-                className={[
-                  'flex items-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium text-left',
-                  area === valor
-                    ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300'
-                    : 'border-slate-200 dark:border-slate-700 hover:border-brand-300 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800/40',
-                ].join(' ')}
-              >
-                <span className="text-xl">{icon}</span>
-                {label}
-              </button>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* Passo 2: Disciplina */}
-      {tipo === 'por_disciplina' && (
-        <Card padding="md">
-          <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">
-            2. Disciplina
-          </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {DISCIPLINAS.map(({ valor, label, icon }) => (
-              <button
-                key={valor}
-                onClick={() => setDisciplina(valor)}
-                className={[
-                  'flex items-center gap-2 p-2.5 rounded-xl border-2 transition-all text-sm font-medium',
-                  disciplina === valor
-                    ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300'
-                    : 'border-slate-200 dark:border-slate-700 hover:border-brand-300 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800/40',
-                ].join(' ')}
-              >
-                <span>{icon}</span>
-                <span className="truncate">{label}</span>
-              </button>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* Passo 3: Filtros */}
-      <Card padding="md">
-        <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">
-          {tipo === 'enem_completo' ? '2.' : '3.'} Filtros opcionais
-        </h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1 mb-2">
-              <Clock size={12} /> Ano de referência
-            </label>
-            <select
-              value={ano ?? ''}
-              onChange={(e) => setAno(e.target.value ? Number(e.target.value) : null)}
-              className="input-custom"
+          <div className="flex items-center gap-2 mb-3">
+            <button
+              onClick={() => setTipoPrincipal(null)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
             >
-              <option value="">Todos os anos</option>
-              {ANOS.filter(Boolean).map((a) => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
+              <ChevronLeft size={16} />
+            </button>
+            <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              2. Modalidade
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {SUBTIPOS.map(({ id, label, desc, icon: Icon, cor }) => (
+              <button
+                key={id}
+                onClick={() => setSubtipo(id)}
+                className={[
+                  'p-4 rounded-xl border-2 text-left transition-all duration-200',
+                  subtipo === id
+                    ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/30'
+                    : 'border-slate-200 dark:border-slate-700 hover:border-brand-300 bg-white dark:bg-slate-800/40',
+                ].join(' ')}
+              >
+                <div className={`w-10 h-10 ${cor} rounded-xl flex items-center justify-center mb-2`}>
+                  <Icon size={19} className="text-white" />
+                </div>
+                <p className="font-semibold text-sm text-slate-800 dark:text-slate-200">{label}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{desc}</p>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Etapa 3 (ENEM): Área / Disciplina + Filtros ───────────────────── */}
+      {tipoPrincipal === 'oficial' && subtipo !== null && (
+        <>
+          {/* Seletor de Área */}
+          {subtipo === 'por_area' && (
+            <Card padding="md">
+              <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+                3. Área de conhecimento
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                {AREAS.map(({ valor, label, icon }) => (
+                  <button
+                    key={valor}
+                    onClick={() => setArea(valor)}
+                    className={[
+                      'flex items-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium',
+                      area === valor
+                        ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-brand-300 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800/40',
+                    ].join(' ')}
+                  >
+                    <span className="text-xl">{icon}</span>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Seletor de Disciplina */}
+          {subtipo === 'por_disciplina' && (
+            <Card padding="md">
+              <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+                3. Disciplina
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {DISCIPLINAS.map(({ valor, label, icon }) => (
+                  <button
+                    key={valor}
+                    onClick={() => setDisciplina(valor)}
+                    className={[
+                      'flex items-center gap-2 p-2.5 rounded-xl border-2 transition-all text-sm font-medium',
+                      disciplina === valor
+                        ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-brand-300 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800/40',
+                    ].join(' ')}
+                  >
+                    <span>{icon}</span>
+                    <span className="truncate">{label}</span>
+                  </button>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Filtros opcionais */}
+          <Card padding="md">
+            <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
+              {subtipo === 'enem_completo' ? '3.' : '4.'} Filtros opcionais
+            </h3>
+
+            {/* Ano — apenas últimos 3 anos */}
+            <div className="mb-4">
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1 mb-2">
+                <Clock size={12} /> Ano de referência
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {[null, ...ANOS_RECENTES].map((a) => (
+                  <button
+                    key={String(a)}
+                    onClick={() => setAno(a)}
+                    className={[
+                      'px-4 py-1.5 rounded-xl border text-sm font-semibold transition-all',
+                      ano === a
+                        ? 'gradient-brand text-white border-transparent'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-brand-400',
+                    ].join(' ')}
+                  >
+                    {a ?? 'Todos'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Nível */}
+            <div className="mb-4">
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1 mb-2">
+                <Star size={12} /> Nível de dificuldade
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {NIVEIS.map(({ valor, label }) => (
+                  <button
+                    key={String(valor)}
+                    onClick={() => setNivel(valor)}
+                    className={[
+                      'px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
+                      nivel === valor
+                        ? 'gradient-brand text-white border-transparent'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-brand-400',
+                    ].join(' ')}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quantidade */}
+            <div className="mb-4">
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1 mb-2">
+                <Hash size={12} />
+                Questões:{' '}
+                <span className="text-brand-600 dark:text-brand-400 font-bold ml-1">{quantidade}</span>
+                {subtipo === 'enem_completo' && (
+                  <span className="text-slate-400 ml-1">por área ({quantidade * 4} total)</span>
+                )}
+              </label>
+              <input
+                type="range"
+                min={1}
+                max={subtipo === 'enem_completo' ? 20 : 45}
+                value={quantidade}
+                onChange={(e) => setQtd(Number(e.target.value))}
+                className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, #6366f1 ${(quantidade / (subtipo === 'enem_completo' ? 20 : 45)) * 100}%, #e2e8f0 0%)`,
+                }}
+              />
+              <div className="flex justify-between text-xs text-slate-400 mt-1">
+                <span>1</span>
+                <span>{subtipo === 'enem_completo' ? '20 por área' : '45'}</span>
+              </div>
+            </div>
+
+            {/* Tempo limite */}
+            <div>
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1 mb-2">
+                <Clock size={12} /> Tempo limite
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {TEMPOS.map(({ valor, label }) => (
+                  <button
+                    key={valor}
+                    onClick={() => setTempoLimite(valor)}
+                    className={[
+                      'px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
+                      tempoLimite === valor
+                        ? 'gradient-brand text-white border-transparent'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-brand-400',
+                    ].join(' ')}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {/* ── I.A: Lista de simulados disponíveis ───────────────────────────── */}
+      {tipoPrincipal === 'ia' && (
+        <Card padding="md">
+          <div className="flex items-center gap-2 mb-4">
+            <button
+              onClick={() => setTipoPrincipal(null)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              2. Escolher simulado I.A
+            </h3>
           </div>
 
-          <div>
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1 mb-2">
-              <Star size={12} /> Nível de dificuldade
-            </label>
-            <div className="flex gap-2 flex-wrap">
-              {NIVEIS.map(({ valor, label }) => (
+          {loadingIA && (
+            <div className="flex justify-center py-10">
+              <Loader2 size={30} className="animate-spin text-violet-500" />
+            </div>
+          )}
+
+          {erroIA && !loadingIA && (
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-sm">
+              <AlertCircle size={15} />
+              {erroIA}
+            </div>
+          )}
+
+          {!loadingIA && !erroIA && simuladosIA.length === 0 && (
+            <div className="text-center py-12">
+              <div className="w-14 h-14 bg-violet-100 dark:bg-violet-900/30 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Sparkles size={26} className="text-violet-400" />
+              </div>
+              <p className="font-semibold text-slate-600 dark:text-slate-300">
+                Nenhum simulado disponível
+              </p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-xs mx-auto">
+                Os simulados gerados por I.A aparecerão aqui assim que forem adicionados.
+              </p>
+            </div>
+          )}
+
+          {!loadingIA && simuladosIA.length > 0 && (
+            <div className="space-y-2">
+              {simuladosIA.map((sim) => (
                 <button
-                  key={String(valor)}
-                  onClick={() => setNivel(valor)}
+                  key={sim.id}
+                  onClick={() => setSimuladoIaSelected(sim)}
                   className={[
-                    'px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
-                    nivel === valor
-                      ? 'gradient-brand text-white border-transparent'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-brand-400',
+                    'w-full flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all duration-150',
+                    simuladoIaSelected?.id === sim.id
+                      ? 'border-violet-500 bg-violet-50 dark:bg-violet-950/30'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-violet-300 bg-white dark:bg-slate-800/40',
                   ].join(' ')}
                 >
-                  {label}
+                  <div className="w-10 h-10 bg-violet-500 rounded-xl flex items-center justify-center shrink-0">
+                    <Sparkles size={18} className="text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate">
+                      {sim.nome}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {sim.tipoExame && (
+                        <span className="text-xs bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 px-2 py-0.5 rounded-full font-medium">
+                          {sim.tipoExame}
+                        </span>
+                      )}
+                      {sim.qtdQuestoes > 0 && (
+                        <span className="text-xs text-slate-400">{sim.qtdQuestoes} questões</span>
+                      )}
+                    </div>
+                  </div>
+                  {simuladoIaSelected?.id === sim.id && (
+                    <div className="w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center shrink-0">
+                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
-          </div>
-        </div>
+          )}
+        </Card>
+      )}
 
-        <div className="mt-4">
-          <label className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1 mb-2">
-            <Hash size={12} />
-            Quantidade de questões:{' '}
-            <span className="text-brand-600 dark:text-brand-400 font-bold ml-1">{quantidade}</span>
-            {tipo === 'enem_completo' && (
-              <span className="text-slate-400"> por área ({quantidade * 4} total)</span>
-            )}
-          </label>
-          <input
-            type="range"
-            min={1}
-            max={tipo === 'enem_completo' ? 20 : 45}
-            value={quantidade}
-            onChange={(e) => setQtd(Number(e.target.value))}
-            className="w-full h-2 rounded-full appearance-none cursor-pointer"
-            style={{
-              background: `linear-gradient(to right, #6366f1 ${(quantidade / (tipo === 'enem_completo' ? 20 : 45)) * 100}%, #e2e8f0 0%)`,
-            }}
-          />
-          <div className="flex justify-between text-xs text-slate-400 mt-1">
-            <span>1</span>
-            <span>{tipo === 'enem_completo' ? '20 por área' : '45'}</span>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1 mb-2">
-            <Clock size={12} /> Tempo limite
-          </label>
-          <div className="flex gap-2 flex-wrap">
-            {TEMPOS.map(({ valor, label }) => (
-              <button
-                key={valor}
-                onClick={() => setTempoLimite(valor)}
-                className={[
-                  'px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
-                  tempoLimite === valor
-                    ? 'gradient-brand text-white border-transparent'
-                    : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-brand-400',
-                ].join(' ')}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </Card>
-
+      {/* Erro de ação */}
       {erro && (
         <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-sm animate-slideDown">
           ⚠️ {erro}
         </div>
       )}
 
-      <Button
-        variant="primary"
-        size="lg"
-        fullWidth
-        loading={carregando}
-        onClick={handleIniciar}
-        icon={!carregando && <Zap size={18} />}
-        className="shadow-brand-lg glow-brand"
-      >
-        {carregando ? 'Carregando questões...' : 'Iniciar Simulado'}
-        {!carregando && <ChevronRight size={18} />}
-      </Button>
+      {/* Botão Iniciar */}
+      {podeIniciar && (
+        <Button
+          variant="primary"
+          size="lg"
+          fullWidth
+          loading={carregando}
+          onClick={tipoPrincipal === 'ia' ? handleIniciarIA : handleIniciarOficial}
+          icon={!carregando && <Zap size={18} />}
+          className={`${tipoPrincipal === 'ia' ? 'bg-violet-600 hover:bg-violet-700 border-violet-600' : 'shadow-brand-lg glow-brand'}`}
+        >
+          {carregando ? 'Carregando questões...' : 'Iniciar Simulado'}
+          {!carregando && <ChevronRight size={18} />}
+        </Button>
+      )}
     </div>
   );
 }

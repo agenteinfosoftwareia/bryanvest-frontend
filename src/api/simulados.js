@@ -62,3 +62,20 @@ export async function gerarPorDisciplina({ disciplina, ano, nivel, quantidade = 
   return resp.data.dados;
 }
 
+/**
+ * Lista simulados pré-gerados por I.A disponíveis no banco
+ * GET /api/v1/simulados/ia
+ */
+export async function listarSimuladosIA() {
+  const resp = await client.get('/api/v1/simulados/ia');
+  return resp.data.dados;
+}
+
+/**
+ * Obtém um simulado I.A completo (com questões) pelo ID
+ * GET /api/v1/simulados/ia/{id}
+ */
+export async function obterSimuladoIA(id) {
+  const resp = await client.get(`/api/v1/simulados/ia/${id}`);
+  return resp.data.dados;
+}
