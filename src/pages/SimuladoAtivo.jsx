@@ -110,30 +110,6 @@ export default function SimuladoAtivo() {
           animated
         />
 
-        {/* Mini mapa: respondida (brand) vs pendente (cinza) — sem revelar certo/errado */}
-        <div className="flex gap-1 mt-3 flex-wrap">
-          {questoes.map((q, idx) => {
-            const respondida = !!respostas[q.id];
-            const isAtual    = idx === indiceAtual;
-
-            return (
-              <div
-                key={idx}
-                className={[
-                  'w-6 h-6 rounded-md text-xs font-bold flex items-center justify-center transition-all',
-                  isAtual
-                    ? 'gradient-brand text-white scale-110 shadow-brand-sm'
-                    : respondida
-                    ? 'bg-brand-400 dark:bg-brand-600 text-white'
-                    : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400',
-                ].join(' ')}
-                title={`Questão ${idx + 1}${respondida ? ' — respondida' : ''}`}
-              >
-                {idx + 1}
-              </div>
-            );
-          })}
-        </div>
       </div>
 
       {/* ── Layout: Questão (esquerda) + ScoreBoard (direita) ───────── */}
